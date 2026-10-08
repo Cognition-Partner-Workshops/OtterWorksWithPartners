@@ -45,7 +45,7 @@ class ExportArchive:
         if real == root or os.path.commonpath([real, root]) != root:
             logger.warning("export_read_rejected", name=name)
             raise self._not_found(name)
-        return path
+        return real
 
     @staticmethod
     def _not_found(name: str) -> FileNotFoundError:
