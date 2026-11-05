@@ -11,6 +11,9 @@ module Api
           'document-service'     => 'slow_queries',
         }.freeze
 
+        ADMIN_ROLES = %w[admin super_admin].freeze
+
+        before_action :require_admin_role
         before_action :verify_chaos_secret
 
         # POST /api/v1/admin/chaos
@@ -76,9 +79,20 @@ module Api
           end
         end
 
+        def require_admin_role
+          payload = request.env['jwt.payload'] || {}
+          roles = [payload['role'], *Array(payload['roles'])].compact.map { |r| r.to_s.downcase }
+          return if roles.intersect?(ADMIN_ROLES)
+
+          render json: { error: 'Forbidden' }, status: :forbidden
+        end
+
         def verify_chaos_secret
           expected = ENV.fetch('CHAOS_SECRET', nil)
-          return if expected.nil? || expected.empty? # secret not configured → allow (dev mode)
+          if expected.blank?
+            Rails.logger.warn('CHAOS request rejected: CHAOS_SECRET is not configured')
+            return render json: { error: 'Chaos injection is disabled' }, status: :forbidden
+          end
 
           provided = request.headers['X-Chaos-Secret']
           return if ActiveSupport::SecurityUtils.secure_compare(provided.to_s, expected)

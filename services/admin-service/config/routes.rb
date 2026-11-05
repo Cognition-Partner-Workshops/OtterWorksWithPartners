@@ -47,7 +47,7 @@ Rails.application.routes.draw do
         # Bulk Operations
         post 'bulk/users', to: 'bulk#users'
 
-        # Chaos injection (demo/workshop use — protected by X-Chaos-Secret header)
+        # Chaos injection (demo/workshop use — requires admin JWT + X-Chaos-Secret header)
         post  'chaos', to: 'chaos#trigger'
         delete 'chaos', to: 'chaos#reset'
 
