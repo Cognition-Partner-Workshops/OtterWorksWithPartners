@@ -11,6 +11,8 @@ module Api
             return render json: { error: 'user_ids must be a non-empty array' }, status: :bad_request
           end
 
+          return if operation == 'update_role' && !authorize_bulk_role_change!(user_ids)
+
           result = BulkOperationsService.process(
             operation: operation,
             user_ids: user_ids,
@@ -42,6 +44,19 @@ module Api
 
         def bulk_params
           params.permit(:reason, :role).to_h.symbolize_keys # nosemgrep: ruby.lang.security.model-attr-accessible.model-attr-accessible
+        end
+
+        # Only a super_admin may grant or revoke the admin/super_admin roles.
+        # Returns false (after rendering 403) when the caller is not allowed.
+        def authorize_bulk_role_change!(user_ids)
+          return true if super_admin?
+
+          touches_privileged = ADMIN_ROLES.include?(params[:role].to_s) ||
+                               AdminUser.exists?(id: user_ids, role: ADMIN_ROLES)
+          return true unless touches_privileged
+
+          require_super_admin!
+          false
         end
       end
     end

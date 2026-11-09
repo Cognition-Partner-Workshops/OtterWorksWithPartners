@@ -23,6 +23,40 @@ RSpec.describe Api::V1::Admin::BulkController do
       expect(body['success_count']).to eq(3)
     end
 
+    context 'when the caller is an admin (not super_admin)' do
+      before { set_jwt_env(request, role: 'admin') }
+
+      it 'can suspend users' do
+        post :users, params: { operation: 'suspend', user_ids: user_ids, reason: 'Policy' }
+        expect(response).to have_http_status(:ok)
+      end
+
+      it 'can assign a non-privileged role' do
+        post :users, params: { operation: 'update_role', user_ids: user_ids, role: 'editor' }
+        expect(response).to have_http_status(:ok)
+        expect(users.map { |u| u.reload.role }).to all(eq('editor'))
+      end
+
+      it 'cannot grant the super_admin role' do
+        post :users, params: { operation: 'update_role', user_ids: user_ids, role: 'super_admin' }
+        expect(response).to have_http_status(:forbidden)
+        expect(users.map { |u| u.reload.role }).to all(eq('viewer'))
+      end
+
+      it 'cannot demote a super_admin' do
+        target = create(:admin_user, :super_admin)
+        post :users, params: { operation: 'update_role', user_ids: [target.id], role: 'viewer' }
+        expect(response).to have_http_status(:forbidden)
+        expect(target.reload.role).to eq('super_admin')
+      end
+    end
+
+    it 'forbids non-admin callers' do
+      set_jwt_env(request, role: 'viewer')
+      post :users, params: { operation: 'suspend', user_ids: user_ids }
+      expect(response).to have_http_status(:forbidden)
+    end
+
     it 'returns multi_status when some users not found' do
       post :users, params: { operation: 'suspend', user_ids: user_ids + [SecureRandom.uuid] }
       expect(response).to have_http_status(:multi_status)
