@@ -1,5 +1,12 @@
 class ApplicationController < ActionController::API
+  # Roles accepted by the admin API. The admin-service's own AdminUser roles are
+  # lowercase (super_admin/admin); the auth-service issues uppercase enum names
+  # (ADMIN/OWNER) in a `roles` array, which JwtAuthenticator downcases.
+  SUPER_ADMIN_ROLES = %w[super_admin owner].freeze
+  ADMIN_ROLES = (SUPER_ADMIN_ROLES + %w[admin]).freeze
+
   before_action :set_request_metadata
+  before_action :require_admin!
 
   rescue_from StandardError do |e|
     Rails.logger.error("Unhandled error: #{e.message}")
@@ -30,6 +37,32 @@ class ApplicationController < ActionController::API
 
   def current_user_role
     request.env['jwt.user_role']
+  end
+
+  def current_user_roles
+    Array(request.env['jwt.user_roles']).map { |role| role.to_s.downcase }
+  end
+
+  def admin?
+    current_user_roles.intersect?(ADMIN_ROLES)
+  end
+
+  def super_admin?
+    current_user_roles.intersect?(SUPER_ADMIN_ROLES)
+  end
+
+  def require_admin!
+    return if admin?
+
+    Rails.logger.warn("Forbidden: user #{current_user_id.inspect} with roles #{current_user_roles.inspect} " \
+                      "attempted #{request.method} #{request.path}")
+    render json: { error: 'Forbidden: administrator role required' }, status: :forbidden
+  end
+
+  def require_super_admin!
+    return if super_admin?
+
+    render json: { error: 'Forbidden: super_admin role required' }, status: :forbidden
   end
 
   def set_request_metadata

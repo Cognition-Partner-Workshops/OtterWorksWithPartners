@@ -11,6 +11,8 @@ module Api
           'document-service'     => 'slow_queries',
         }.freeze
 
+        # Excluded from JWT auth (JwtAuthenticator::EXCLUDED_PATHS); guarded by a shared secret instead.
+        skip_before_action :require_admin!
         before_action :verify_chaos_secret
 
         # POST /api/v1/admin/chaos

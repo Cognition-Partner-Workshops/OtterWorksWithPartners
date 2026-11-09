@@ -3,6 +3,7 @@ module Api
     module Admin
       class UsersController < ApplicationController
         before_action :set_user, only: %i[show update destroy suspend activate]
+        before_action :authorize_role_change!, only: :update
 
         # GET /api/v1/admin/users
         def index
@@ -98,6 +99,19 @@ module Api
 
         def user_params
           params.require(:user).permit(:email, :display_name, :role, :avatar_url) # nosemgrep: ruby.lang.security.model-attr-accessible.model-attr-accessible
+        end
+
+        # Only a super_admin may grant or revoke the admin/super_admin roles.
+        def authorize_role_change!
+          new_role = user_params[:role]
+          return if new_role.blank? || new_role == @user.role
+          return unless privileged_role?(new_role) || privileged_role?(@user.role)
+
+          require_super_admin!
+        end
+
+        def privileged_role?(role)
+          ADMIN_ROLES.include?(role.to_s)
         end
       end
     end

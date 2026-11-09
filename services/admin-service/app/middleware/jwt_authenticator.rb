@@ -20,6 +20,7 @@ class JwtAuthenticator
     env['jwt.user_id'] = payload['sub']
     env['jwt.user_email'] = payload['email']
     env['jwt.user_role'] = payload['role']
+    env['jwt.user_roles'] = extract_roles(payload)
 
     @app.call(env)
   end
@@ -28,6 +29,13 @@ class JwtAuthenticator
 
   def skip_authentication?(request)
     EXCLUDED_PATHS.any? { |path| request.path == path }
+  end
+
+  # The auth-service issues a `roles` array (e.g. ["USER", "ADMIN"]); older
+  # tokens carry a single `role` string. Normalise both into a lowercase list.
+  def extract_roles(payload)
+    roles = Array(payload['roles']) + Array(payload['role'])
+    roles.filter_map { |role| role.to_s.downcase.presence }.uniq
   end
 
   def extract_token(request)
